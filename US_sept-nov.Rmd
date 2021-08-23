@@ -1,0 +1,1114 @@
+---
+title: "Markov model, Conversion Paths-US, Paso 4"
+output: 
+  flexdashboard::flex_dashboard:
+    highlight: haddock
+    
+    
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#require(remotes)
+#install_version("markovchain", version = "0.6.9.16", repos = "http://cran.us.r-project.org")
+#install_version("visNetwork", version = "0.6.9.16", repos = "http://cran.us.r-project.org")
+
+#library(tidyverse)
+library(reshape2)
+library(ggthemes)
+library(ggrepel)
+library(RColorBrewer)
+library(ChannelAttribution)
+library(markovchain)
+library(visNetwork)
+#library(expm)
+library(stringr)
+library(purrrlyr)
+library(dplyr)
+library(stringr)
+#library(expm)
+#library(xlsx)
+library(openxlsx)
+library(readxl)
+library(kableExtra)
+library(plotly)
+library(base)
+#library(dygraphs)
+library(flexdashboard)
+library(tidyr)
+#library(tidyverse)
+library(magrittr)
+#library(stringi)
+library(openxlsx)
+library(readxl)
+#options(java.parameters = "- Xmx1024m")
+#library(rJava)
+#library(XLConnect)
+library(flexdashboard)
+library(ggplot2)
+library(shiny)
+library(datasets)
+#library(dplyr)
+library(knitr)
+library(kableExtra)
+library(DT)
+library(readxl)
+#library(gdata)
+library(formattable)
+library(plotly)
+#library(XLConnectJars)
+library(viridis)
+library(ChannelAttribution)
+
+#setwd("C:/Users/juliana.forero/Desktop/Conversion paths/Mayo")
+```
+
+Septiembre {data-navmenu="Top 10 Conversion paths"}
+===============================================================
+
+Column {data-width=500}
+------------------------------------------------------
+
+### First-touch
+
+
+```{r, echo=FALSE}
+
+set.seed(454)
+
+df_multi_paths <- read_excel("General_todo1.xlsx", sheet = 2) %>%  tbl_df()
+
+ 
+df_multi_paths <- df_multi_paths %>% filter(US =='TRUE')
+
+df_hm <- df_multi_paths %>%
+  mutate(channel_name_ft = sub('>.*', '', path),
+         channel_name_ft = sub(' ', '', channel_name_ft),
+         channel_name_lt = sub('.*>', '', path),
+         channel_name_lt = sub(' ', '', channel_name_lt))
+
+# first-touch conversions
+df_ft <- df_hm %>%
+  group_by(channel_name_ft) %>%summarise(n=sum(conversion))%>% mutate(Participacion=round((n/sum(n))*100,2)) %>% arrange(desc(n)) %>% ungroup()
+
+me=ggplot(df_ft, aes(x=channel_name_ft,y=n,fill=channel_name_ft)) + labs(x="Medio",y="Frecuencia",title="Frecuencia de medios que aparecen como primera interacción")+
+  geom_bar(stat="identity")+theme_minimal() +coord_flip()+geom_text(data=df_ft, aes(x=channel_name_ft,y=Participacion,label = paste0(Participacion,"%")), size=3)+theme(legend.position = 'none')
+
+
+ggplotly(me)
+```
+
+Column {data-width=500}
+------------------------------------------------------
+
+### Last-touch
+
+```{r, echo=FALSE}
+df_lt <- df_hm %>%
+  group_by(channel_name_lt) %>%summarise(n=sum(conversion))%>% mutate(Participacion=round((n/sum(n))*100,2)) %>% arrange(desc(n)) %>% ungroup()
+
+me=ggplot(df_lt, aes(x=channel_name_lt,y=n,fill=channel_name_lt)) + labs(x="Medio",y="Frecuencia",title="Frecuencia de medios que aparecen como última interacción")+
+  geom_bar(stat="identity")+theme_minimal() +coord_flip()+geom_text(data=df_lt, aes(x=channel_name_lt,y=Participacion,label = paste0(Participacion,"%")), size=3)+theme(legend.position = 'none')
+
+
+ggplotly(me)
+
+```
+
+
+
+Septiembre {data-navmenu="Model comparison"}
+===============================================================
+
+Column {data-width=400}
+------------------------------------------------------
+
+### First, last and Markov models
+
+
+
+```{r, echo=FALSE}
+
+#seq = read_excel("General.xlsx", sheet = 2) %>%  tbl_df()
+
+# seq <- read_excel("General_todo1.xlsx", sheet = 2) %>% 
+#   tbl_df() %>% 
+#   filter(US =='TRUE')
+
+# run models
+basic_model = heuristic_models(df_multi_paths, "path", "conversion")
+dynamic_model = markov_model(df_multi_paths, "path", "conversion")
+
+
+
+# build barplot
+result = merge(basic_model,dynamic_model, by = "channel_name")
+names(result) = c("channel","first","last","linear","markov")
+
+result <- result[c(1,2,3,5)] %>%  mutate(Porcentaje_Markov=round((markov/sum(markov))*100,2))  
+
+result <- result %>% arrange(desc(Porcentaje_Markov)) %>%  mutate(Porcentaje_Markov=paste0(Porcentaje_Markov,"%"))
+
+
+result1 = result[c(1,2,3,4)]
+  
+result1 = melt(result1, id.vars="channel")
+
+# position based
+
+#df_hm <- seq %>%
+ # mutate(channel_name_ft = sub('>.*', '', path),
+  #       channel_name_ft = sub(' ', '', channel_name_ft),
+   #      channel_name_lt = sub('.*>', '', path),
+    #     channel_name_lt = sub(' ', '', channel_name_lt))
+
+# first-touch conversions
+#df_ft <- df_hm %>%
+ # group_by(channel_name_ft) %>%summarise(n=sum(conversion))%>% mutate(Position_based=channel_name_ft*0.35) 
+
+#position <- result %>% summarise(Position_based=)
+
+
+
+kable(result,  caption = "Conversions in the 3 approaches") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), 
+                full_width = F,position = "center", 
+                font_size = 15)%>% row_spec(0, bold = T, color = "black", 
+                                            background = "darksalmon")
+```
+
+
+Column {data-width=600}
+------------------------------------------------------
+
+
+### Graph
+
+
+
+```{r, echo=FALSE}
+
+a <- ggplot(result1, aes(channel, value)) +
+  geom_bar(aes(fill = variable), position = "dodge", stat="identity") +
+  scale_fill_viridis(discrete=TRUE) +
+  xlab("") + ylab("Conversions") +
+  guides(fill = guide_legend(title = "Model")) +coord_flip()
+
+ggplotly(a)
+
+```
+
+
+
+Septiembre {data-navmenu="Removal effects"}
+===============================================================
+
+
+
+### Efectos de remover un medio de los caminos observados
+
+```{r, echo=FALSE}
+
+
+mod_attrib_alt <- markov_model(df_multi_paths,
+                               var_path = 'path',
+                               var_conv = 'conversion',
+                               var_null = 'null_conversion',
+                               out_more = TRUE)
+#mod_attrib_alt$removal_effects
+#mod_attrib_alt$result
+
+d_all <- data.frame(mod_attrib_alt$result)
+d_all1 <- data.frame(mod_attrib_alt$removal_effects)
+
+d_all1<- d_all1 %>% arrange(desc(removal_effects)) %>% mutate(Participacion=round((removal_effects*100),2))
+
+
+me=ggplot(d_all1, aes(x=channel_name,y=removal_effects,fill=channel_name)) + labs(x="Medio",y="Porcentage",title="Reducción esperada de conversiones si se remueve el medio")+
+  geom_bar(stat="identity")+theme_minimal() +coord_flip()+geom_text(data=d_all1, aes(x=channel_name,y=removal_effects,label = paste0(Participacion,"%")), size=3)+theme(legend.position = 'none')
+
+
+ggplotly(me)
+
+```
+
+
+
+Septiembre {data-navmenu="Grafo"}
+===============================================================
+
+```{r, echo=FALSE}
+# OTRO INTENTO DEL GRAFO --------------------------------------------------
+
+
+mod_attrib_complete <- markov_model(
+  df_multi_paths,
+  var_path = 'path',
+  var_conv = 'conversion',
+  var_null = 'null_conversion',
+  out_more = TRUE
+)
+
+trans_matrix_prob <- mod_attrib_complete$transition_matrix %>%
+  dmap_at(c(1, 2), as.character)
+
+##### viz #####
+edges <-
+  data.frame(
+    from = trans_matrix_prob$channel_from,
+    to = trans_matrix_prob$channel_to,
+    label = round(trans_matrix_prob$transition_probability, 2),
+    font.size = trans_matrix_prob$transition_probability * 100,
+    width = trans_matrix_prob$transition_probability * 15,
+    shadow = TRUE,
+    arrows = "to",
+    color = list(color = "#95cbee", highlight = "red")
+  )
+
+nodes <- data_frame(id = c( c(trans_matrix_prob$channel_from), c(trans_matrix_prob$channel_to) )) %>%
+  distinct(id) %>%
+  arrange(id) %>%
+  mutate(
+    label = id,
+    color = ifelse(
+      label %in% c('(start)', '(conversion)'),
+      '#4ab04a',
+      ifelse(label == '(null)', '#ce472e', '#ffd73e')
+    ),
+    shadow = TRUE,
+    shape = "box"
+  )
+
+visNetwork(nodes,
+           edges,
+           height = "2000px",
+           width = "2000%",
+           main = "Modelo Probabilístico, Matriz de transición") %>%
+  visIgraphLayout(randomSeed = 123) %>%
+  visNodes(size = 5) %>%
+  visOptions(highlightNearest = TRUE, 
+             nodesIdSelection = TRUE) %>%
+  visLayout(randomSeed = 123) 
+```
+
+
+Septiembre {data-navmenu="Heatmap"}
+===============================================================
+
+```{r, echo=FALSE, fig.height = 10, fig.width = 15}
+
+
+
+mod_attrib_complete <- markov_model(
+  df_multi_paths,
+  var_path = 'path',
+  var_conv = 'conversion',
+  var_null = 'null_conversion',
+  out_more = TRUE
+)
+
+############## visualizations ##############
+# transition matrix heatmap for "real" data
+df_plot_trans <- mod_attrib_complete$transition_matrix
+
+cols <- c("#e7f0fa", "#c9e2f6", "#95cbee", "#0099dc", "#4ab04a", "#ffd73e", "#eec73a",
+          "#e29421", "#e29421", "#f05336", "#ce472e")
+
+
+
+t <- max(df_plot_trans$transition_probability)
+
+
+
+a <- ggplot(df_plot_trans, aes(y = channel_from, x = channel_to, fill = transition_probability)) +
+  theme_minimal() +
+  geom_tile(colour = "white", width = .9, height = .9) +
+  scale_fill_gradientn(colours = cols, limits = c(0, t),
+                       breaks = seq(0, t, by = t/4),
+                       labels = c("0", round(t/4*1, 2), round(t/4*2, 2), round(t/4*3, 2), round(t/4*4, 2)),
+                       guide = guide_colourbar(ticks = T, nbin = 50, barheight = .5, label = T, barwidth = 10)) +
+  geom_text(aes(label = round(transition_probability, 2)), fontface = "bold", size = 4) +
+  theme(legend.position = 'bottom',
+        legend.direction = "horizontal",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(size = 20, face = "bold", vjust = 2, color = 'black', lineheight = 0.8),
+        axis.title.x = element_text(size = 25, face = "bold"),
+        axis.title.y = element_text(size = 25, face = "bold"),
+        axis.text.y = element_text(size = 9, face = "bold", color = 'black'),
+        axis.text.x = element_text(size = 9, angle = 90, hjust = 0.5, vjust = 0.5, face = "plain")) +
+  ggtitle("Matriz de transición, mapa de calor")
+
+ggplotly(a) 
+
+```
+
+
+
+Septiembre {data-navmenu="Inversión"}
+===============================================================
+
+Column {data-width=400}
+------------------------------------------------------
+
+### Tabla de inversión por medio, cálculo de la inversión óptima
+
+```{r, echo=FALSE}
+
+df <- read_excel("General_todo1.xlsx", sheet = 4) %>%  tbl_df() %>% 
+  filter(inversion_actual!=0) %>% 
+  group_by(medio) %>%
+  summarise(inversion = sum(inversion_actual), 
+            inversion_markov = round((sum(inversion_markov)),0)) %>%
+  arrange(desc(inversion_markov)) %>% 
+  #mutate(dif_porc = ifelse(inversion !=0,
+   #                    100*(inversion-inversion_markov)/inversion_markov,
+    #                   0) %>% 
+     #      round(1) %>% 
+      #     paste0(.,'%')) %>% 
+mutate(Actual = round((inversion/sum(inversion))*100,2)%>% 
+           round(1) %>% 
+           paste0(.,'%')) %>% 
+  mutate(Markov = round((inversion_markov/sum(inversion_markov))*100,2)%>% 
+           round(1) %>% 
+           paste0(.,'%')) 
+
+kable(df,  caption = "Presupuesto según el modelo probabilístico") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"),
+                full_width = F,position = "center",
+                font_size = 15)%>% row_spec(0, bold = T, color = "black",
+                                            background = "darksalmon")
+
+```
+
+
+Column {data-width=600}
+---------------------------------------
+
+### Graph
+
+```{r, echo=FALSE}
+
+df1 <- df %>% 
+  select(medio, inversion, inversion_markov) %>% 
+  gather(variable, value, -medio) 
+  
+# mm <- df1 %>% 
+#   filter(variable == "Participacion")
+
+me <- ggplot(data = df1, aes(x = medio, y = value, fill = variable)) +
+  geom_bar(stat = 'identity', position = 'dodge')+
+  coord_flip()+ 
+  labs(x="Medio",y="Inversión",
+       title="Distribución del presupuesto")+
+  scale_y_continuous(labels = scales::dollar)
+#+  geom_text(aes(data=mm, x=medio,y=value,label=paste0(value,"%")),size=4)
+
+
+ggplotly(me)
+
+```
+
+
+
+
+Octubre {data-navmenu="Top 10 Conversion paths"}
+===============================================================
+
+Column {data-width=500}
+------------------------------------------------------
+
+### First-touch
+
+
+```{r, echo=FALSE}
+
+set.seed(454)
+
+df_multi_paths <- read_excel("General_todo1.xlsx", sheet = 6) %>%  tbl_df()
+
+ 
+df_multi_paths <- df_multi_paths %>% filter(US =='TRUE')
+
+df_hm <- df_multi_paths %>%
+  mutate(channel_name_ft = sub('>.*', '', path),
+         channel_name_ft = sub(' ', '', channel_name_ft),
+         channel_name_lt = sub('.*>', '', path),
+         channel_name_lt = sub(' ', '', channel_name_lt))
+
+# first-touch conversions
+df_ft <- df_hm %>%
+  group_by(channel_name_ft) %>%summarise(n=sum(conversion))%>% mutate(Participacion=round((n/sum(n))*100,2)) %>% arrange(desc(n)) %>% ungroup()
+
+me=ggplot(df_ft, aes(x=channel_name_ft,y=n,fill=channel_name_ft)) + labs(x="Medio",y="Frecuencia",title="Frecuencia de medios que aparecen como primera interacción")+
+  geom_bar(stat="identity")+theme_minimal() +coord_flip()+geom_text(data=df_ft, aes(x=channel_name_ft,y=Participacion,label = paste0(Participacion,"%")), size=3)+theme(legend.position = 'none')
+
+
+ggplotly(me)
+```
+
+Column {data-width=500}
+------------------------------------------------------
+
+### Last-touch
+
+```{r, echo=FALSE}
+df_lt <- df_hm %>%
+  group_by(channel_name_lt) %>%summarise(n=sum(conversion))%>% mutate(Participacion=round((n/sum(n))*100,2)) %>% arrange(desc(n)) %>% ungroup()
+
+me=ggplot(df_lt, aes(x=channel_name_lt,y=n,fill=channel_name_lt)) + labs(x="Medio",y="Frecuencia",title="Frecuencia de medios que aparecen como última interacción")+
+  geom_bar(stat="identity")+theme_minimal() +coord_flip()+geom_text(data=df_lt, aes(x=channel_name_lt,y=Participacion,label = paste0(Participacion,"%")), size=3)+theme(legend.position = 'none')
+
+
+ggplotly(me)
+
+```
+
+
+
+Octubre {data-navmenu="Model comparison"}
+===============================================================
+
+Column {data-width=400}
+------------------------------------------------------
+
+### First, last and Markov models
+
+
+
+```{r, echo=FALSE}
+
+#seq = read_excel("General.xlsx", sheet = 2) %>%  tbl_df()
+
+# seq <- read_excel("General_todo1.xlsx", sheet = 2) %>% 
+#   tbl_df() %>% 
+#   filter(US =='TRUE')
+
+# run models
+basic_model = heuristic_models(df_multi_paths, "path", "conversion")
+dynamic_model = markov_model(df_multi_paths, "path", "conversion")
+
+
+
+# build barplot
+result = merge(basic_model,dynamic_model, by = "channel_name")
+names(result) = c("channel","first","last","linear","markov")
+
+result <- result[c(1,2,3,5)] %>%  mutate(Porcentaje_Markov=round((markov/sum(markov))*100,2))  
+
+result <- result %>% arrange(desc(Porcentaje_Markov)) %>%  mutate(Porcentaje_Markov=paste0(Porcentaje_Markov,"%"))
+
+
+result1 = result[c(1,2,3,4)]
+  
+result1 = melt(result1, id.vars="channel")
+
+# position based
+
+#df_hm <- seq %>%
+ # mutate(channel_name_ft = sub('>.*', '', path),
+  #       channel_name_ft = sub(' ', '', channel_name_ft),
+   #      channel_name_lt = sub('.*>', '', path),
+    #     channel_name_lt = sub(' ', '', channel_name_lt))
+
+# first-touch conversions
+#df_ft <- df_hm %>%
+ # group_by(channel_name_ft) %>%summarise(n=sum(conversion))%>% mutate(Position_based=channel_name_ft*0.35) 
+
+#position <- result %>% summarise(Position_based=)
+
+
+
+kable(result,  caption = "Conversions in the 3 approaches") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), 
+                full_width = F,position = "center", 
+                font_size = 15)%>% row_spec(0, bold = T, color = "black", 
+                                            background = "darksalmon")
+```
+
+
+Column {data-width=600}
+------------------------------------------------------
+
+
+### Graph
+
+
+
+```{r, echo=FALSE}
+
+a <- ggplot(result1, aes(channel, value)) +
+  geom_bar(aes(fill = variable), position = "dodge", stat="identity") +
+  scale_fill_viridis(discrete=TRUE) +
+  xlab("") + ylab("Conversions") +
+  guides(fill = guide_legend(title = "Model")) +coord_flip()
+
+ggplotly(a)
+
+```
+
+
+
+Octubre {data-navmenu="Removal effects"}
+===============================================================
+
+
+
+### Efectos de remover un medio de los caminos observados
+
+```{r, echo=FALSE}
+
+
+mod_attrib_alt <- markov_model(df_multi_paths,
+                               var_path = 'path',
+                               var_conv = 'conversion',
+                               var_null = 'null_conversion',
+                               out_more = TRUE)
+#mod_attrib_alt$removal_effects
+#mod_attrib_alt$result
+
+d_all <- data.frame(mod_attrib_alt$result)
+d_all1 <- data.frame(mod_attrib_alt$removal_effects)
+
+d_all1<- d_all1 %>% arrange(desc(removal_effects)) %>% mutate(Participacion=round((removal_effects*100),2))
+
+
+me=ggplot(d_all1, aes(x=channel_name,y=removal_effects,fill=channel_name)) + labs(x="Medio",y="Porcentage",title="Reducción esperada de conversiones si se remueve el medio")+
+  geom_bar(stat="identity")+theme_minimal() +coord_flip()+geom_text(data=d_all1, aes(x=channel_name,y=removal_effects,label = paste0(Participacion,"%")), size=3)+theme(legend.position = 'none')
+
+
+ggplotly(me)
+
+```
+
+
+
+
+Octubre {data-navmenu="Grafo"}
+===============================================================
+
+
+```{r, echo=FALSE}
+# OTRO INTENTO DEL GRAFO --------------------------------------------------
+
+
+mod_attrib_complete <- markov_model(
+  df_multi_paths,
+  var_path = 'path',
+  var_conv = 'conversion',
+  var_null = 'null_conversion',
+  out_more = TRUE
+)
+
+trans_matrix_prob <- mod_attrib_complete$transition_matrix %>%
+  dmap_at(c(1, 2), as.character)
+
+##### viz #####
+edges <-
+  data.frame(
+    from = trans_matrix_prob$channel_from,
+    to = trans_matrix_prob$channel_to,
+    label = round(trans_matrix_prob$transition_probability, 2),
+    font.size = trans_matrix_prob$transition_probability * 100,
+    width = trans_matrix_prob$transition_probability * 15,
+    shadow = TRUE,
+    arrows = "to",
+    color = list(color = "#95cbee", highlight = "red")
+  )
+
+nodes <- data_frame(id = c( c(trans_matrix_prob$channel_from), c(trans_matrix_prob$channel_to) )) %>%
+  distinct(id) %>%
+  arrange(id) %>%
+  mutate(
+    label = id,
+    color = ifelse(
+      label %in% c('(start)', '(conversion)'),
+      '#4ab04a',
+      ifelse(label == '(null)', '#ce472e', '#ffd73e')
+    ),
+    shadow = TRUE,
+    shape = "box"
+  )
+
+visNetwork(nodes,
+           edges,
+           height = "2000px",
+           width = "2000%",
+           main = "Modelo Probabilístico, Matriz de transición") %>%
+  visIgraphLayout(randomSeed = 123) %>%
+  visNodes(size = 5) %>%
+  visOptions(highlightNearest = TRUE, 
+             nodesIdSelection = TRUE) %>%
+  visLayout(randomSeed = 123) 
+```
+
+
+Octubre {data-navmenu="Heatmap"}
+===============================================================
+
+```{r, echo=FALSE, fig.height = 10, fig.width = 15}
+
+
+
+mod_attrib_complete <- markov_model(
+  df_multi_paths,
+  var_path = 'path',
+  var_conv = 'conversion',
+  var_null = 'null_conversion',
+  out_more = TRUE
+)
+
+############## visualizations ##############
+# transition matrix heatmap for "real" data
+df_plot_trans <- mod_attrib_complete$transition_matrix
+
+cols <- c("#e7f0fa", "#c9e2f6", "#95cbee", "#0099dc", "#4ab04a", "#ffd73e", "#eec73a",
+          "#e29421", "#e29421", "#f05336", "#ce472e")
+
+
+
+t <- max(df_plot_trans$transition_probability)
+
+
+
+a <- ggplot(df_plot_trans, aes(y = channel_from, x = channel_to, fill = transition_probability)) +
+  theme_minimal() +
+  geom_tile(colour = "white", width = .9, height = .9) +
+  scale_fill_gradientn(colours = cols, limits = c(0, t),
+                       breaks = seq(0, t, by = t/4),
+                       labels = c("0", round(t/4*1, 2), round(t/4*2, 2), round(t/4*3, 2), round(t/4*4, 2)),
+                       guide = guide_colourbar(ticks = T, nbin = 50, barheight = .5, label = T, barwidth = 10)) +
+  geom_text(aes(label = round(transition_probability, 2)), fontface = "bold", size = 4) +
+  theme(legend.position = 'bottom',
+        legend.direction = "horizontal",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(size = 20, face = "bold", vjust = 2, color = 'black', lineheight = 0.8),
+        axis.title.x = element_text(size = 25, face = "bold"),
+        axis.title.y = element_text(size = 25, face = "bold"),
+        axis.text.y = element_text(size = 9, face = "bold", color = 'black'),
+        axis.text.x = element_text(size = 9, angle = 90, hjust = 0.5, vjust = 0.5, face = "plain")) +
+  ggtitle("Matriz de transición, mapa de calor")
+
+ggplotly(a) 
+
+```
+
+
+
+Octubre {data-navmenu="Inversión"}
+===============================================================
+
+Column {data-width=400}
+------------------------------------------------------
+
+### Tabla de inversión por medio, cálculo de la inversión óptima
+
+```{r, echo=FALSE}
+
+df <- read_excel("General_todo1.xlsx", sheet = 7) %>%  tbl_df() %>% 
+  filter(inversion_actual!=0) %>% 
+  group_by(medio) %>%
+  summarise(inversion = sum(inversion_actual), 
+            inversion_markov = round((sum(inversion_markov)),0)) %>%
+  arrange(desc(inversion_markov)) %>% 
+  #mutate(dif_porc = ifelse(inversion !=0,
+   #                    100*(inversion-inversion_markov)/inversion_markov,
+    #                   0) %>% 
+     #      round(1) %>% 
+      #     paste0(.,'%')) %>% 
+mutate(Actual = round((inversion/sum(inversion))*100,2)%>% 
+           round(1) %>% 
+           paste0(.,'%')) %>% 
+  mutate(Markov = round((inversion_markov/sum(inversion_markov))*100,2)%>% 
+           round(1) %>% 
+           paste0(.,'%')) 
+
+kable(df,  caption = "Presupuesto según el modelo probabilístico") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"),
+                full_width = F,position = "center",
+                font_size = 15)%>% row_spec(0, bold = T, color = "black",
+                                            background = "darksalmon")
+
+```
+
+
+Column {data-width=600}
+---------------------------------------
+
+### Graph
+
+```{r, echo=FALSE}
+
+df1 <- df %>% 
+  select(medio, inversion, inversion_markov) %>% 
+  gather(variable, value, -medio) 
+  
+# mm <- df1 %>% 
+#   filter(variable == "Participacion")
+
+me <- ggplot(data = df1, aes(x = medio, y = value, fill = variable)) +
+  geom_bar(stat = 'identity', position = 'dodge')+
+  coord_flip()+ 
+  labs(x="Medio",y="Inversión",
+       title="Distribución del presupuesto")+
+  scale_y_continuous(labels = scales::dollar)
+#+  geom_text(aes(data=mm, x=medio,y=value,label=paste0(value,"%")),size=4)
+
+
+ggplotly(me)
+
+```
+
+
+
+
+Noviembre {data-navmenu="Top 10 Conversion paths"}
+===============================================================
+
+Column {data-width=500}
+------------------------------------------------------
+
+### First-touch
+
+
+```{r, echo=FALSE}
+
+set.seed(454)
+
+df_multi_paths <- read_excel("Nov15.xlsx", sheet = 1) %>%  tbl_df()
+
+ 
+  df_multi_paths <- df_multi_paths %>% filter(US =='TRUE')
+
+df_hm <- df_multi_paths %>%
+  mutate(channel_name_ft = sub('>.*', '', path),
+         channel_name_ft = sub(' ', '', channel_name_ft),
+         channel_name_lt = sub('.*>', '', path),
+         channel_name_lt = sub(' ', '', channel_name_lt))
+
+# first-touch conversions
+df_ft <- df_hm %>%
+  group_by(channel_name_ft) %>%summarise(n=sum(conversion))%>% mutate(Participacion=round((n/sum(n))*100,2)) %>% arrange(desc(n)) %>% ungroup()
+
+me=ggplot(df_ft, aes(x=channel_name_ft,y=n,fill=channel_name_ft)) + labs(x="Medio",y="Frecuencia",title="Frecuencia de medios que aparecen como primera interacción")+
+  geom_bar(stat="identity")+theme_minimal() +coord_flip()+geom_text(data=df_ft, aes(x=channel_name_ft,y=Participacion,label = paste0(Participacion,"%")), size=3)+theme(legend.position = 'none')
+
+
+ggplotly(me)
+```
+
+Column {data-width=500}
+------------------------------------------------------
+
+### Last-touch
+
+```{r, echo=FALSE}
+df_lt <- df_hm %>%
+  group_by(channel_name_lt) %>%summarise(n=sum(conversion))%>% mutate(Participacion=round((n/sum(n))*100,2)) %>% arrange(desc(n)) %>% ungroup()
+
+me=ggplot(df_lt, aes(x=channel_name_lt,y=n,fill=channel_name_lt)) + labs(x="Medio",y="Frecuencia",title="Frecuencia de medios que aparecen como última interacción")+
+  geom_bar(stat="identity")+theme_minimal() +coord_flip()+geom_text(data=df_lt, aes(x=channel_name_lt,y=Participacion,label = paste0(Participacion,"%")), size=3)+theme(legend.position = 'none')
+
+
+ggplotly(me)
+
+```
+
+
+
+Noviembre {data-navmenu="Model comparison"}
+===============================================================
+
+Column {data-width=400}
+------------------------------------------------------
+
+### First, last and Markov models
+
+
+
+```{r, echo=FALSE}
+
+#seq = read_excel("General.xlsx", sheet = 2) %>%  tbl_df()
+
+# seq <- read_excel("General_todo1.xlsx", sheet = 2) %>% 
+#   tbl_df() %>% 
+#   filter(US =='TRUE')
+
+# run models
+basic_model = heuristic_models(df_multi_paths, "path", "conversion")
+dynamic_model = markov_model(df_multi_paths, "path", "conversion")
+
+
+
+# build barplot
+result = merge(basic_model,dynamic_model, by = "channel_name")
+names(result) = c("channel","first","last","linear","markov")
+
+result <- result[c(1,2,3,5)] %>%  mutate(Porcentaje_Markov=round((markov/sum(markov))*100,2))  
+
+result <- result %>% arrange(desc(Porcentaje_Markov)) %>%  mutate(Porcentaje_Markov=paste0(Porcentaje_Markov,"%"))
+
+
+result1 = result[c(1,2,3,4)]
+  
+result1 = melt(result1, id.vars="channel")
+
+# position based
+
+#df_hm <- seq %>%
+ # mutate(channel_name_ft = sub('>.*', '', path),
+  #       channel_name_ft = sub(' ', '', channel_name_ft),
+   #      channel_name_lt = sub('.*>', '', path),
+    #     channel_name_lt = sub(' ', '', channel_name_lt))
+
+# first-touch conversions
+#df_ft <- df_hm %>%
+ # group_by(channel_name_ft) %>%summarise(n=sum(conversion))%>% mutate(Position_based=channel_name_ft*0.35) 
+
+#position <- result %>% summarise(Position_based=)
+
+
+
+kable(result,  caption = "Conversions in the 3 approaches") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), 
+                full_width = F,position = "center", 
+                font_size = 15)%>% row_spec(0, bold = T, color = "black", 
+                                            background = "darksalmon")
+```
+
+
+Column {data-width=600}
+------------------------------------------------------
+
+
+### Graph
+
+
+
+```{r, echo=FALSE}
+
+a <- ggplot(result1, aes(channel, value)) +
+  geom_bar(aes(fill = variable), position = "dodge", stat="identity") +
+  scale_fill_viridis(discrete=TRUE) +
+  xlab("") + ylab("Conversions") +
+  guides(fill = guide_legend(title = "Model")) +coord_flip()
+
+ggplotly(a)
+
+```
+
+
+
+Noviembre {data-navmenu="Removal effects"}
+===============================================================
+
+
+
+### Efectos de remover un medio de los caminos observados
+
+```{r, echo=FALSE}
+
+
+mod_attrib_alt <- markov_model(df_multi_paths,
+                               var_path = 'path',
+                               var_conv = 'conversion',
+                               var_null = 'null_conversion',
+                               out_more = TRUE)
+#mod_attrib_alt$removal_effects
+#mod_attrib_alt$result
+
+d_all <- data.frame(mod_attrib_alt$result)
+d_all1 <- data.frame(mod_attrib_alt$removal_effects)
+
+d_all1<- d_all1 %>% arrange(desc(removal_effects)) %>% mutate(Participacion=round((removal_effects*100),2))
+
+
+me=ggplot(d_all1, aes(x=channel_name,y=removal_effects,fill=channel_name)) + labs(x="Medio",y="Porcentage",title="Reducción esperada de conversiones si se remueve el medio")+
+  geom_bar(stat="identity")+theme_minimal() +coord_flip()+geom_text(data=d_all1, aes(x=channel_name,y=removal_effects,label = paste0(Participacion,"%")), size=3)+theme(legend.position = 'none')
+
+
+ggplotly(me)
+
+```
+
+
+
+Noviembre {data-navmenu="Grafo"}
+===============================================================
+
+```{r, echo=FALSE}
+# OTRO INTENTO DEL GRAFO --------------------------------------------------
+
+
+mod_attrib_complete <- markov_model(
+  df_multi_paths,
+  var_path = 'path',
+  var_conv = 'conversion',
+  var_null = 'null_conversion',
+  out_more = TRUE
+)
+
+trans_matrix_prob <- mod_attrib_complete$transition_matrix %>%
+  dmap_at(c(1, 2), as.character)
+
+##### viz #####
+edges <-
+  data.frame(
+    from = trans_matrix_prob$channel_from,
+    to = trans_matrix_prob$channel_to,
+    label = round(trans_matrix_prob$transition_probability, 2),
+    font.size = trans_matrix_prob$transition_probability * 100,
+    width = trans_matrix_prob$transition_probability * 15,
+    shadow = TRUE,
+    arrows = "to",
+    color = list(color = "#95cbee", highlight = "red")
+  )
+
+nodes <- data_frame(id = c( c(trans_matrix_prob$channel_from), c(trans_matrix_prob$channel_to) )) %>%
+  distinct(id) %>%
+  arrange(id) %>%
+  mutate(
+    label = id,
+    color = ifelse(
+      label %in% c('(start)', '(conversion)'),
+      '#4ab04a',
+      ifelse(label == '(null)', '#ce472e', '#ffd73e')
+    ),
+    shadow = TRUE,
+    shape = "box"
+  )
+
+visNetwork(nodes,
+           edges,
+           height = "2000px",
+           width = "2000%",
+           main = "Modelo Probabilístico, Matriz de transición") %>%
+  visIgraphLayout(randomSeed = 123) %>%
+  visNodes(size = 5) %>%
+  visOptions(highlightNearest = TRUE, 
+             nodesIdSelection = TRUE) %>%
+  visLayout(randomSeed = 123) 
+```
+
+
+Noviembre {data-navmenu="Heatmap"}
+===============================================================
+
+```{r, echo=FALSE, fig.height = 10, fig.width = 15}
+
+
+
+mod_attrib_complete <- markov_model(
+  df_multi_paths,
+  var_path = 'path',
+  var_conv = 'conversion',
+  var_null = 'null_conversion',
+  out_more = TRUE
+)
+
+############## visualizations ##############
+# transition matrix heatmap for "real" data
+df_plot_trans <- mod_attrib_complete$transition_matrix
+
+cols <- c("#e7f0fa", "#c9e2f6", "#95cbee", "#0099dc", "#4ab04a", "#ffd73e", "#eec73a",
+          "#e29421", "#e29421", "#f05336", "#ce472e")
+
+
+
+t <- max(df_plot_trans$transition_probability)
+
+
+
+a <- ggplot(df_plot_trans, aes(y = channel_from, x = channel_to, fill = transition_probability)) +
+  theme_minimal() +
+  geom_tile(colour = "white", width = .9, height = .9) +
+  scale_fill_gradientn(colours = cols, limits = c(0, t),
+                       breaks = seq(0, t, by = t/4),
+                       labels = c("0", round(t/4*1, 2), round(t/4*2, 2), round(t/4*3, 2), round(t/4*4, 2)),
+                       guide = guide_colourbar(ticks = T, nbin = 50, barheight = .5, label = T, barwidth = 10)) +
+  geom_text(aes(label = round(transition_probability, 2)), fontface = "bold", size = 4) +
+  theme(legend.position = 'bottom',
+        legend.direction = "horizontal",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(size = 20, face = "bold", vjust = 2, color = 'black', lineheight = 0.8),
+        axis.title.x = element_text(size = 25, face = "bold"),
+        axis.title.y = element_text(size = 25, face = "bold"),
+        axis.text.y = element_text(size = 9, face = "bold", color = 'black'),
+        axis.text.x = element_text(size = 9, angle = 90, hjust = 0.5, vjust = 0.5, face = "plain")) +
+  ggtitle("Matriz de transición, mapa de calor")
+
+ggplotly(a) 
+
+```
+
+
+
+Noviembre {data-navmenu="Inversión"}
+===============================================================
+
+Column {data-width=400}
+------------------------------------------------------
+
+### Tabla de inversión por medio, cálculo de la inversión óptima
+
+```{r, echo=FALSE}
+
+df <- read_excel("Nov15.xlsx", sheet = 2) %>%  tbl_df() %>% 
+  filter(inversion_actual!=0) %>% 
+  group_by(medio) %>%
+  summarise(inversion = sum(inversion_actual), 
+            inversion_markov = round((sum(inversion_markov)),0)) %>%
+  arrange(desc(inversion_markov)) %>% 
+  #mutate(dif_porc = ifelse(inversion !=0,
+   #                    100*(inversion-inversion_markov)/inversion_markov,
+    #                   0) %>% 
+     #      round(1) %>% 
+      #     paste0(.,'%')) %>% 
+mutate(Actual = round((inversion/sum(inversion))*100,2)%>% 
+           round(1) %>% 
+           paste0(.,'%')) %>% 
+  mutate(Markov = round((inversion_markov/sum(inversion_markov))*100,2)%>% 
+           round(1) %>% 
+           paste0(.,'%')) 
+
+kable(df,  caption = "Presupuesto según el modelo probabilístico") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"),
+                full_width = F,position = "center",
+                font_size = 15)%>% row_spec(0, bold = T, color = "black",
+                                            background = "darksalmon")
+
+```
+
+
+Column {data-width=600}
+---------------------------------------
+
+### Graph
+
+```{r, echo=FALSE}
+
+df1 <- df %>% 
+  select(medio, inversion, inversion_markov) %>% 
+  gather(variable, value, -medio) 
+  
+# mm <- df1 %>% 
+#   filter(variable == "Participacion")
+
+me <- ggplot(data = df1, aes(x = medio, y = value, fill = variable)) +
+  geom_bar(stat = 'identity', position = 'dodge')+
+  coord_flip()+ 
+  labs(x="Medio",y="Inversión",
+       title="Distribución del presupuesto")+
+  scale_y_continuous(labels = scales::dollar)
+#+  geom_text(aes(data=mm, x=medio,y=value,label=paste0(value,"%")),size=4)
+
+
+ggplotly(me)
+
+```
+
+
